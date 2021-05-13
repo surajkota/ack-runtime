@@ -76,7 +76,10 @@ func (r *adoptionReconciler) Reconcile(req ctrlrt.Request) (ctrlrt.Result, error
 
 func (r *adoptionReconciler) reconcile(req ctrlrt.Request) error {
 	ctx := context.Background()
+
+	r.log.Info("d1")
 	res, err := r.getAdoptedResource(ctx, req)
+	r.log.Info("d2")
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// resource wasn't found. just ignore these.
@@ -84,9 +87,9 @@ func (r *adoptionReconciler) reconcile(req ctrlrt.Request) error {
 		}
 		return err
 	}
-
+	r.log.Info("d3")
 	gk := r.getTargetResourceGroupKind(res)
-
+	r.log.Info("d4")
 	// Check if the target API group matches with the controller
 	var controllerRMF acktypes.AWSResourceManagerFactory
 	for _, v := range r.sc.GetResourceManagerFactories() {
@@ -97,7 +100,7 @@ func (r *adoptionReconciler) reconcile(req ctrlrt.Request) error {
 		ackrtlog.DebugAdoptedResource(r.log, res, "target resource API group is not of this service. no-op")
 		return nil
 	}
-
+	r.log.Info("d5")
 	// Look up the rmf for the given target resource GVK
 	rmf, ok := (r.sc.GetResourceManagerFactories())[gk.String()]
 	if !ok {
@@ -132,7 +135,7 @@ func (r *adoptionReconciler) reconcile(req ctrlrt.Request) error {
 	if err != nil {
 		return err
 	}
-
+	r.log.Info("d6")
 	if res.DeletionTimestamp != nil {
 		return r.cleanup(ctx, *res)
 	}
@@ -141,7 +144,7 @@ func (r *adoptionReconciler) reconcile(req ctrlrt.Request) error {
 	if r.isAdopted(ctx, res) {
 		return nil
 	}
-
+	r.log.Info("d8")
 	return r.sync(ctx, targetDescriptor, rm, res)
 }
 
@@ -151,17 +154,18 @@ func (r *adoptionReconciler) sync(
 	rm acktypes.AWSResourceManager,
 	desired *ackv1alpha1.AdoptedResource,
 ) error {
+	r.log.Info("ds1")
 	// Create empty resource with spec/status fields set for ReadOne
 	readableResource := targetDescriptor.ResourceFromRuntimeObject(targetDescriptor.EmptyRuntimeObject())
 	if err := readableResource.SetIdentifiers(desired.Spec.AWS); err != nil {
 		return r.onError(ctx, desired, err)
 	}
-
+	r.log.Info("ds2")
 	described, err := rm.ReadOne(ctx, readableResource)
 	if err != nil {
 		return r.onError(ctx, desired, err)
 	}
-
+	r.log.Info("ds3")
 	rmo := described.RuntimeMetaObject()
 
 	// Use values from ReadOne output by default
@@ -214,20 +218,20 @@ func (r *adoptionReconciler) sync(
 
 	described.SetObjectMeta(*targetMeta)
 	targetDescriptor.MarkAdopted(described)
-
+	r.log.Info("ds4")
 	if err := r.kc.Create(ctx, described.RuntimeObject()); err != nil {
 		return r.onError(ctx, desired, err)
 	}
-
+	r.log.Info("ds5")
 	if err := r.markManaged(ctx, *desired); err != nil {
 		return r.onError(ctx, desired, err)
 	}
-
+	r.log.Info("ds6")
 	if err := r.onSuccess(ctx, desired); err != nil {
 		// Don't attempt to patch conditions again, directly return err
 		return err
 	}
-
+	r.log.Info("ds7")
 	return nil
 }
 
@@ -381,6 +385,12 @@ func (r *adoptionReconciler) markUnmanaged(
 // handleReconcileError will handle errors from reconcile handlers, which
 // respects runtime errors.
 func (r *adoptionReconciler) handleReconcileError(err error) (ctrlrt.Result, error) {
+	if err != nil {
+		r.log.Info("handle error", "err", err.Error())
+	} else {
+		r.log.Info("handle error", "err", err)
+	}
+
 	if err == nil || err == ackerr.Terminal {
 		return ctrlrt.Result{}, nil
 	}
